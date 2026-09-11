@@ -1,0 +1,8 @@
+langchain
+langchain-openrouter
+langchain-community
+chromadb
+tiktoken
+python-dotenv
+pypdf
+docx2txt
