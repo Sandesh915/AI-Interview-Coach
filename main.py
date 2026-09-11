@@ -1,65 +1,49 @@
 from dotenv import load_dotenv
 
-from chains.interviewer import (
-    create_interviewer_chain,
-    INTERVIEWER_STYLES,
-)
+from chains.interviewer import create_interviewer_with_history
 
 
 load_dotenv()
 
 
-def run_basic_interview():
+def run_interview():
 
-    interviewer = create_interviewer_chain()
+    interviewer = create_interviewer_with_history()
 
     config = {
         "interview_type": "technical Python",
         "level": "senior",
-        "focus_area": "Python fundamentals, OOP, and best practices",
-        "total_questions": 5,
-        "interviewer_style": INTERVIEWER_STYLES["friendly"],
+        "focus_area": "Python fundamentals and design patterns",
     }
+
+    session_id = "interview_001"
 
     print("=" * 50)
     print("AI Interview Coach")
     print("=" * 50)
     print("Type 'quit' to exit.\n")
 
-    # First question
-    response = interviewer.invoke({
-        **config,
-        "question_number": 1,
-        "input": "Start the interview with your first question.",
-    })
+    while True:
 
-    print(f"\nInterviewer: {response}\n")
+        user_input = input("You: ")
 
-    question_num = 1
-
-    while question_num < config["total_questions"]:
-
-        answer = input("You: ")
-
-        if answer.lower() == "quit":
+        if user_input.lower() == "quit":
             break
 
-        question_num += 1
-
-        response = interviewer.invoke({
-            **config,
-            "question_number": question_num,
-            "input": (
-                f"The candidate answered:\n{answer}\n\n"
-                f"Acknowledge the answer briefly and ask "
-                f"question {question_num}."
-            ),
-        })
+        response = interviewer.invoke(
+            {
+                **config,
+                "input": user_input,
+            },
+            config={
+                "configurable": {
+                    "session_id": session_id
+                }
+            },
+        )
 
         print(f"\nInterviewer: {response}\n")
 
-    print("Interview complete!")
-
 
 if __name__ == "__main__":
-    run_basic_interview()
+    run_interview()

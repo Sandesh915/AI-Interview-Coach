@@ -1,62 +1,56 @@
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.output_parsers import StrOutputParser
-from langchain_openai import ChatOpenAI
+from memory.conversation import create_memory
+from chains.interviewer import create_interviewer_chain_with_memory
+from langchain_core.messages import HumanMessage, AIMessage
 
+def run_interview_with_memory():
+    # Create memory instance
+    memory = create_memory()
 
-INTERVIEWER_STYLES = {
-    "friendly": (
-        "Be warm and encouraging. Help the candidate feel comfortable."
-    ),
-    "challenging": (
-        "Push back on answers. Ask follow-up questions and test depth."
-    ),
-    "neutral": (
-        "Be professional and straightforward. Give minimal feedback."
-    ),
-}
+    # Create chain with memory
+    interviewer = create_interviewer_chain_with_memory(memory)
 
+    config = {
+        "interview_type": "technical Python",
+        "level": "senior",
+        "focus_area": "Python fundamentals and design patterns",
+    }
 
-INTERVIEWER_SYSTEM_PROMPT = """
-You are an expert technical interviewer conducting a {interview_type} interview.
+    print("=" * 50)
+    print("AI Interview Coach - With Memory")
+    print("=" * 50)
+    print("Type 'quit' to exit, 'history' to see conversation\n")
 
-Your role:
-- Ask one clear, focused question at a time.
-- Questions should be appropriate for a {level} position.
-- Be professional and encouraging.
-- After the candidate answers, provide brief acknowledgment before asking the next question.
+    # Initial prompt
+    user_input = "Please start the interview."
 
-Interview focus:
-{focus_area}
+    while True:
+        # Get response
+        response = interviewer.invoke({
+            **config,
+            "input": user_input
+        })
 
-Interviewer style:
-{interviewer_style}
+        # Save to memory
+        memory.chat_memory.add_user_message(user_input)
+        memory.chat_memory.add_ai_message(response)
 
-Current question number:
-{question_number} of {total_questions}
-"""
+        print(f"\nInterviewer: {response}\n")
 
+        # Get next input
+        user_input = input("You: ")
 
-interviewer_prompt = ChatPromptTemplate.from_messages([
-    ("system", INTERVIEWER_SYSTEM_PROMPT),
+        if user_input.lower() == 'quit':
+            break
+        elif user_input.lower() == 'history':
+            print("\n--- Conversation History ---")
+            for msg in memory.chat_memory.messages:
+                role = "You" if isinstance(msg, HumanMessage) else "Interviewer"
+                print(f"{role}: {msg.content[:100]}...")
+            print("--- End History ---\n")
+            user_input = input("You: ")
 
-    MessagesPlaceholder(
-        variable_name="history",
-        optional=True
-    ),
+    print("\nInterview complete!")
+    return memory
 
-    ("human", "{input}")
-])
-
-
-def create_interviewer_chain(
-    model: str = "gpt-4o-mini",
-    temperature: float = 0.7,
-):
-    llm = ChatOpenAI(
-        model=model,
-        temperature=temperature,
-    )
-
-    chain = interviewer_prompt | llm | StrOutputParser()
-
-    return chain
+if __name__ == "__main__":
+    run_interview_with_memory()
