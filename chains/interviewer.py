@@ -1,4 +1,4 @@
-from langchain_openai import ChatOpenAI
+from langchain_openrouter import ChatOpenRouter
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -7,55 +7,66 @@ from langchain_core.chat_history import (
     InMemoryChatMessageHistory,
 )
 
-def run_interview_with_memory():
-    # Create memory instance
-    memory = create_memory()
 
-    # Create chain with memory
-    interviewer = create_interviewer_chain_with_memory(memory)
+INTERVIEWER_SYSTEM_PROMPT = """
+You are an expert technical interviewer.
 
-    config = {
-        "interview_type": "technical Python",
-        "level": "senior",
-        "focus_area": "Python fundamentals and design patterns",
-    }
+Your role:
+- Ask one clear, focused question at a time.
+- Reference previous answers when relevant.
+- Build on the conversation naturally.
+- Avoid repeating questions.
+- Be professional but encouraging.
 
-    print("=" * 50)
-    print("AI Interview Coach - With Memory")
-    print("=" * 50)
-    print("Type 'quit' to exit, 'history' to see conversation\n")
+Interview type: {interview_type}
+Position level: {level}
+Focus area: {focus_area}
 
-    # Initial prompt
-    user_input = "Please start the interview."
+Use the conversation history to understand what has already
+been discussed.
+"""
 
-    while True:
-        # Get response
-        response = interviewer.invoke({
-            **config,
-            "input": user_input
-        })
 
-        # Save to memory
-        memory.chat_memory.add_user_message(user_input)
-        memory.chat_memory.add_ai_message(response)
+# Store conversation histories for different interview sessions
+session_store: dict[str, InMemoryChatMessageHistory] = {}
 
-        print(f"\nInterviewer: {response}\n")
 
-        # Get next input
-        user_input = input("You: ")
+def get_session_history(
+    session_id: str,
+) -> BaseChatMessageHistory:
 
-        if user_input.lower() == 'quit':
-            break
-        elif user_input.lower() == 'history':
-            print("\n--- Conversation History ---")
-            for msg in memory.chat_memory.messages:
-                role = "You" if isinstance(msg, HumanMessage) else "Interviewer"
-                print(f"{role}: {msg.content[:100]}...")
-            print("--- End History ---\n")
-            user_input = input("You: ")
+    if session_id not in session_store:
+        session_store[session_id] = InMemoryChatMessageHistory()
 
-    print("\nInterview complete!")
-    return memory
+    return session_store[session_id]
 
-if __name__ == "__main__":
-    run_interview_with_memory()
+
+def create_interviewer_with_history():
+    """Create an interviewer chain with conversation history."""
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", INTERVIEWER_SYSTEM_PROMPT),
+
+        MessagesPlaceholder(
+            variable_name="history"
+        ),
+
+        ("human", "{input}"),
+    ])
+
+    llm = ChatOpenRouter(
+        model="openai/gpt-chat-latest",
+        temperature=0.7,
+        max_tokens=512,
+    )
+
+    chain = prompt | llm | StrOutputParser()
+
+    chain_with_history = RunnableWithMessageHistory(
+        chain,
+        get_session_history,
+        input_messages_key="input",
+        history_messages_key="history",
+    )
+
+    return chain_with_history
